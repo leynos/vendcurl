@@ -1,0 +1,51 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "vendcurl"
+version = "0.1.0"
+description = "A tiny curl-ish vendoring wrapper with S3-compatible object-store caching."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Payton and ChatGPT" }]
+keywords = ["curl", "s3", "cache", "vendor", "artifacts"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Internet :: WWW/HTTP",
+  "Topic :: Software Development :: Build Tools",
+]
+dependencies = [
+  "boto3>=1.34",
+]
+
+[project.urls]
+Homepage = "https://example.invalid/vendcurl"
+
+[project.scripts]
+vendcurl = "vendcurl.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/vendcurl"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "/src",
+  "/tests",
+  "/README.md",
+  "/pyproject.toml",
+  "/LICENSE",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
