@@ -1,3 +1,5 @@
+"""Tests for archive validators and the CLI's cache helper functions."""
+
 from __future__ import annotations
 
 import gzip
@@ -13,7 +15,10 @@ from vendcurl.validators import ValidationError, detect_validator, is_unsafe_arc
 
 
 class ValidatorTests(unittest.TestCase):
+    """Tests for archive type detection and structural validation."""
+
     def test_detects_common_archive_extensions(self) -> None:
+        """Check that common archive suffixes map to the expected validator."""
         self.assertEqual(detect_validator("https://example.test/pkg.tar.gz"), "tar")
         self.assertEqual(detect_validator("https://example.test/pkg.tgz"), "tar")
         self.assertEqual(detect_validator("https://example.test/pkg.zip"), "zip")
@@ -22,6 +27,7 @@ class ValidatorTests(unittest.TestCase):
         self.assertEqual(detect_validator("https://example.test/pkg.bin"), "none")
 
     def test_safe_and_unsafe_archive_names(self) -> None:
+        """Check that traversal, absolute, and drive-letter names are rejected."""
         self.assertFalse(is_unsafe_archive_name("foo/bar.txt"))
         self.assertTrue(is_unsafe_archive_name("../bar.txt"))
         self.assertTrue(is_unsafe_archive_name("/tmp/bar.txt"))
@@ -29,6 +35,7 @@ class ValidatorTests(unittest.TestCase):
         self.assertTrue(is_unsafe_archive_name("foo\\..\\bar.txt"))
 
     def test_validates_zip_and_rejects_zip_slip_paths(self) -> None:
+        """Check that a safe zip passes and a zip-slip member name is rejected."""
         with TemporaryDirectory() as tmpdir:
             safe = Path(tmpdir) / "safe.zip"
             with zipfile.ZipFile(safe, "w") as zf:
@@ -42,6 +49,7 @@ class ValidatorTests(unittest.TestCase):
                 validate_file(unsafe, "zip")
 
     def test_validates_tar_gz(self) -> None:
+        """Check that a well-formed gzipped tar archive passes validation."""
         with TemporaryDirectory() as tmpdir:
             archive = Path(tmpdir) / "safe.tar.gz"
             payload = b"hello"
@@ -52,6 +60,7 @@ class ValidatorTests(unittest.TestCase):
             validate_file(archive, "tar")
 
     def test_validates_gzip_stream(self) -> None:
+        """Check that a valid gzip stream passes and corrupt data is rejected."""
         with TemporaryDirectory() as tmpdir:
             path = Path(tmpdir) / "x.gz"
             with gzip.open(path, "wb") as fh:
@@ -64,7 +73,10 @@ class ValidatorTests(unittest.TestCase):
 
 
 class CliHelperTests(unittest.TestCase):
+    """Tests for the CLI's object-store key and output path helpers."""
+
     def test_s3_keys_are_content_addressed(self) -> None:
+        """Check that blob keys embed the digest and manifest keys are JSON."""
         digest = "a" * 64
         self.assertEqual(blob_key("prefix", digest), f"prefix/blobs/sha256/aa/{digest}")
         key = url_manifest_key("prefix", "https://example.test/a.tar.gz")
@@ -72,6 +84,7 @@ class CliHelperTests(unittest.TestCase):
         self.assertTrue(key.endswith(".json"))
 
     def test_output_path_defaults_to_url_basename(self) -> None:
+        """Check that output paths default to the URL basename or a directory."""
         self.assertEqual(resolve_output_path(None, "https://example.test/path/pkg.tar.gz"), Path("pkg.tar.gz"))
         with TemporaryDirectory() as tmpdir:
             self.assertEqual(

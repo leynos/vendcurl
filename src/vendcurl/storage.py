@@ -1,3 +1,5 @@
+"""Object-store helpers for caching vendored artifacts in S3."""
+
 from __future__ import annotations
 
 import json
@@ -12,6 +14,8 @@ class ObjectStoreError(RuntimeError):
 
 @dataclass(frozen=True)
 class S3Config:
+    """Connection settings for an S3 or S3-compatible object store."""
+
     bucket: str
     prefix: str = "vendcurl"
     endpoint_url: str | None = None
@@ -23,12 +27,14 @@ class S3Store:
     """Small boto3 wrapper that keeps imports lazy for testability."""
 
     def __init__(self, config: S3Config):
+        """Store the configuration; the boto3 client is created on first use."""
         self.config = config
         self._client = None
         self._client_error_type = None
 
     @property
     def client(self):
+        """Return the boto3 S3 client, creating and caching it on first use."""
         if self._client is None:
             try:
                 import boto3
@@ -54,6 +60,7 @@ class S3Store:
         return self._client
 
     def get_json(self, key: str) -> dict[str, Any] | None:
+        """Fetch and decode a JSON object, returning None when the key is absent."""
         try:
             response = self.client.get_object(Bucket=self.config.bucket, Key=key)
         except Exception as exc:
@@ -72,6 +79,7 @@ class S3Store:
         return value
 
     def put_json(self, key: str, value: dict[str, Any]) -> None:
+        """Serialize a dict as sorted, indented JSON and upload it to ``key``."""
         body = json.dumps(value, indent=2, sort_keys=True).encode("utf-8") + b"\n"
         try:
             self.client.put_object(
@@ -84,6 +92,7 @@ class S3Store:
             raise ObjectStoreError(f"failed to write s3://{self.config.bucket}/{key}: {exc}") from exc
 
     def download_file(self, key: str, target: Path) -> bool:
+        """Download ``key`` to ``target``, returning False if it does not exist."""
         try:
             self.client.download_file(self.config.bucket, key, str(target))
             return True
@@ -93,6 +102,7 @@ class S3Store:
             raise ObjectStoreError(f"failed to download s3://{self.config.bucket}/{key}: {exc}") from exc
 
     def object_exists(self, key: str) -> bool:
+        """Return whether ``key`` exists, checked with a HEAD request."""
         try:
             self.client.head_object(Bucket=self.config.bucket, Key=key)
             return True
@@ -102,6 +112,7 @@ class S3Store:
             raise ObjectStoreError(f"failed to stat s3://{self.config.bucket}/{key}: {exc}") from exc
 
     def upload_file_if_missing(self, source: Path, key: str, *, metadata: dict[str, str] | None = None) -> bool:
+        """Upload ``source`` to ``key`` unless it exists, returning True if uploaded."""
         if self.object_exists(key):
             return False
         extra_args: dict[str, Any] = {}
@@ -114,6 +125,7 @@ class S3Store:
         return True
 
     def _is_not_found(self, exc: BaseException) -> bool:
+        """Return True when ``exc`` is a boto3 client error for a missing key."""
         client_error_type = self._client_error_type
         if client_error_type is not None and isinstance(exc, client_error_type):
             error = getattr(exc, "response", {}).get("Error", {})
@@ -124,5 +136,6 @@ class S3Store:
 
 
 def join_key(*parts: str | None) -> str:
+    """Join non-empty key parts with slashes, trimming stray slashes."""
     cleaned = [part.strip("/") for part in parts if part and part.strip("/")]
     return "/".join(cleaned)

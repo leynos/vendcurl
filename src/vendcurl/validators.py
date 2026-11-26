@@ -1,3 +1,5 @@
+"""Filename inference and structural validation for downloaded artifacts."""
+
 from __future__ import annotations
 
 import bz2
@@ -32,6 +34,7 @@ _CHUNK_SIZE = 1024 * 1024
 
 
 def infer_filename_from_url(url: str) -> str:
+    """Return the basename of the decoded URL path, or ``download`` if it is empty."""
     parsed = urlparse(url)
     name = Path(unquote(parsed.path)).name
     return name or "download"
@@ -76,6 +79,11 @@ def detect_validator(url: str, output_path: Path | None = None, content_type: st
 
 
 def validate_file(path: Path, validator: str, *, reject_unsafe_paths: bool = True) -> None:
+    """Check that ``path`` is a structurally valid artifact for ``validator``.
+
+    Raises ValidationError when the artifact is invalid, and ValueError when
+    ``validator`` is unknown or still ``auto``.
+    """
     if validator not in VALIDATORS - {"auto"}:
         raise ValueError(f"unknown validator: {validator}")
 
@@ -103,6 +111,11 @@ def validate_file(path: Path, validator: str, *, reject_unsafe_paths: bool = Tru
 
 
 def validate_tar(path: Path, *, reject_unsafe_paths: bool = True) -> None:
+    """Check that a tar archive reads cleanly.
+
+    Unless reject_unsafe_paths is False, it also rejects unsafe member names and
+    link targets.
+    """
     try:
         with tarfile.open(path, mode="r:*") as archive:
             for member in archive:
@@ -120,6 +133,10 @@ def validate_tar(path: Path, *, reject_unsafe_paths: bool = True) -> None:
 
 
 def validate_zip(path: Path, *, reject_unsafe_paths: bool = True) -> None:
+    """Check that a zip archive passes its CRC checks.
+
+    Unless reject_unsafe_paths is False, it also rejects unsafe member names.
+    """
     try:
         with zipfile.ZipFile(path) as archive:
             infos = archive.infolist()
@@ -170,6 +187,7 @@ def is_unsafe_archive_name(name: str, *, allow_relative: bool = False) -> bool:
 
 
 def _read_stream_to_eof(path: Path, opener, label: str) -> None:
+    """Read a compressed stream to EOF, raising ValidationError on corruption."""
     try:
         with opener(path, "rb") as stream:
             for _ in iter(lambda: stream.read(_CHUNK_SIZE), b""):

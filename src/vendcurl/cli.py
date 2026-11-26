@@ -1,3 +1,5 @@
+"""Command-line interface for downloading and vendoring URL artifacts."""
+
 from __future__ import annotations
 
 import argparse
@@ -33,6 +35,8 @@ class CacheMiss(RuntimeError):
 
 @dataclass(frozen=True)
 class DownloadResult:
+    """Digest, size, and HTTP metadata recorded for one origin download."""
+
     sha256: str
     size: int
     final_url: str
@@ -43,6 +47,8 @@ class DownloadResult:
 
 @dataclass(frozen=True)
 class InstallResult:
+    """Outcome of an install, including the output path and object-store keys."""
+
     status: str
     url: str
     output: str
@@ -55,6 +61,11 @@ class InstallResult:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Run the vendcurl CLI and return the process exit status.
+
+    Expected failures print an error to stderr and return 2, and interrupts
+    return 130. ``argv`` defaults to ``sys.argv[1:]`` when it is None.
+    """
     parser = build_parser()
     args = parser.parse_args(argv)
 
@@ -83,6 +94,7 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Build the argument parser for the vendcurl command."""
     parser = argparse.ArgumentParser(
         prog="vendcurl",
         description="Download a URL, validate the artifact, vendor it into S3-compatible storage, and prefer that vendored copy next time.",
@@ -186,6 +198,13 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def run(args: argparse.Namespace, parser: argparse.ArgumentParser) -> InstallResult:
+    """Install the requested URL, preferring a vendored copy when one exists.
+
+    The object-store manifest is tried first, unless ``--refresh`` or
+    ``--no-store`` skips that lookup, then the origin unless ``--no-origin`` is
+    set. The artifact is validated before it is moved into
+    place and vendored to S3 when a store is configured.
+    """
     expected_sha256 = normalize_sha256(args.expected_sha256) if args.expected_sha256 else None
     output = resolve_output_path(args.output, args.url)
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -336,6 +355,13 @@ def try_install_from_manifest(
     *,
     quiet: bool,
 ) -> InstallResult:
+    """Install the artifact described by a vendored URL manifest.
+
+    Raises CacheMiss when the manifest digest is missing, empty or not a string,
+    differs from the requested one, or the blob is missing or does not match the
+    recorded digest. A non-empty malformed digest raises VendcurlError instead,
+    which stops the fallback to the origin.
+    """
     manifest_sha = as_string(manifest.get("sha256"), "manifest.sha256")
     normalize_sha256(manifest_sha)
     if expected_sha256 and manifest_sha != expected_sha256:
@@ -381,6 +407,11 @@ def download_origin(
     retries: int,
     user_agent: str,
 ) -> DownloadResult:
+    """Download a URL to ``target``, retrying transient failures.
+
+    Retries use exponential backoff capped at 30 seconds. Non-retryable HTTP
+    errors are raised immediately.
+    """
     attempts = retries + 1
     last_exc: BaseException | None = None
 
@@ -404,6 +435,7 @@ def download_origin(
 
 
 def _download_origin_once(url: str, target: Path, *, timeout: float, user_agent: str) -> DownloadResult:
+    """Make one download attempt, streaming the response body to ``target``."""
     request = Request(url, headers={"User-Agent": user_agent})
     hasher = hashlib.sha256()
     size = 0
@@ -441,6 +473,7 @@ def build_manifest(
     validator: str,
     blob_key: str,
 ) -> dict[str, Any]:
+    """Build the JSON manifest that maps a URL to its vendored blob."""
     return {
         "schema_version": 1,
         "url": url,
@@ -465,6 +498,11 @@ def choose_validator(
     output: Path,
     content_type: str | None,
 ) -> str:
+    """Pick the validator name, honoring an explicit request first.
+
+    With ``auto``, the URL, output path, and content type are checked before
+    falling back to the manifest's recorded validator, then ``none``.
+    """
     if requested != "auto":
         return requested
     detected = detect_validator(url, output, content_type)
@@ -476,6 +514,7 @@ def choose_validator(
 
 
 def validate(path: Path, validator: str, reject_unsafe_paths: bool) -> None:
+    """Run the named validator on ``path`` and wrap failures as VendcurlError."""
     try:
         validate_file(path, validator, reject_unsafe_paths=reject_unsafe_paths)
     except ValidationError as exc:
@@ -483,6 +522,11 @@ def validate(path: Path, validator: str, reject_unsafe_paths: bool) -> None:
 
 
 def resolve_output_path(output_arg: str | None, url: str) -> Path:
+    """Return the output path, inferring a filename from the URL when needed.
+
+    A directory target, or one ending in a separator, receives the inferred
+    filename.
+    """
     inferred = infer_filename_from_url(url)
     if output_arg is None:
         return Path(inferred)
@@ -494,6 +538,7 @@ def resolve_output_path(output_arg: str | None, url: str) -> Path:
 
 @contextlib.contextmanager
 def temp_path_for(output: Path):
+    """Yield a unique temporary path beside ``output`` and remove it on exit."""
     output.parent.mkdir(parents=True, exist_ok=True)
     fd, name = tempfile.mkstemp(
         prefix=f".{output.name}.",
@@ -510,6 +555,7 @@ def temp_path_for(output: Path):
 
 
 def sha256_file(path: Path) -> str:
+    """Return the hex SHA-256 digest of a file's contents."""
     hasher = hashlib.sha256()
     with path.open("rb") as file_obj:
         for chunk in iter(lambda: file_obj.read(_CHUNK_SIZE), b""):
@@ -518,18 +564,22 @@ def sha256_file(path: Path) -> str:
 
 
 def sha256_text(value: str) -> str:
+    """Return the hex SHA-256 digest of a string encoded as UTF-8."""
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
 def url_manifest_key(prefix: str, url: str) -> str:
+    """Return the object-store key of the manifest for a URL."""
     return join_key(prefix, "manifests", "by-url", f"{sha256_text(url)}.json")
 
 
 def blob_key(prefix: str, sha256: str) -> str:
+    """Return the content-addressed object-store key for a SHA-256 digest."""
     return join_key(prefix, "blobs", "sha256", sha256[:2], sha256)
 
 
 def normalize_sha256(value: str) -> str:
+    """Return the lowercase SHA-256 hex digest, rejecting malformed input."""
     digest = value.strip().lower()
     if len(digest) != 64 or any(ch not in "0123456789abcdef" for ch in digest):
         raise VendcurlError(f"not a SHA-256 hex digest: {value!r}")
@@ -537,12 +587,14 @@ def normalize_sha256(value: str) -> str:
 
 
 def as_string(value: Any, name: str) -> str:
+    """Return a non-empty string value, or raise CacheMiss naming the field."""
     if not isinstance(value, str) or not value:
         raise CacheMiss(f"missing or invalid {name}")
     return value
 
 
 def non_negative_int(value: str) -> int:
+    """Parse a non-negative integer for use as an argparse type."""
     try:
         parsed = int(value)
     except ValueError as exc:
@@ -553,6 +605,7 @@ def non_negative_int(value: str) -> int:
 
 
 def positive_float(value: str) -> float:
+    """Parse a float for use as an argparse type, rejecting values that are <= 0."""
     try:
         parsed = float(value)
     except ValueError as exc:
@@ -563,5 +616,6 @@ def positive_float(value: str) -> float:
 
 
 def log(args: argparse.Namespace, message: str) -> None:
+    """Print a progress message to stderr unless quiet mode is set."""
     if not args.quiet:
         print(f"vendcurl: {message}", file=sys.stderr)
