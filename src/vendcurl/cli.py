@@ -200,8 +200,9 @@ def build_parser() -> argparse.ArgumentParser:
 def run(args: argparse.Namespace, parser: argparse.ArgumentParser) -> InstallResult:
     """Install the requested URL, preferring a vendored copy when one exists.
 
-    The object-store manifest is tried first, then the origin unless
-    ``--no-origin`` is set. The artifact is validated before it is moved into
+    The object-store manifest is tried first, unless ``--refresh`` or
+    ``--no-store`` skips that lookup, then the origin unless ``--no-origin`` is
+    set. The artifact is validated before it is moved into
     place and vendored to S3 when a store is configured.
     """
     expected_sha256 = normalize_sha256(args.expected_sha256) if args.expected_sha256 else None
@@ -604,7 +605,7 @@ def non_negative_int(value: str) -> int:
 
 
 def positive_float(value: str) -> float:
-    """Parse a strictly positive float for use as an argparse type."""
+    """Parse a float for use as an argparse type, rejecting values that are <= 0."""
     try:
         parsed = float(value)
     except ValueError as exc:
