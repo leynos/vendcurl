@@ -356,10 +356,10 @@ def try_install_from_manifest(
 ) -> InstallResult:
     """Install the artifact described by a vendored URL manifest.
 
-    Raises CacheMiss when the manifest digest differs from the requested one
-    or the blob is missing or does not match the recorded digest. A manifest
-    with a malformed digest raises VendcurlError instead, which stops the
-    fallback to the origin.
+    Raises CacheMiss when the manifest digest is missing, empty or not a string,
+    differs from the requested one, or the blob is missing or does not match the
+    recorded digest. A non-empty malformed digest raises VendcurlError instead,
+    which stops the fallback to the origin.
     """
     manifest_sha = as_string(manifest.get("sha256"), "manifest.sha256")
     normalize_sha256(manifest_sha)

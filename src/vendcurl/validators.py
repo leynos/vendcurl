@@ -34,7 +34,7 @@ _CHUNK_SIZE = 1024 * 1024
 
 
 def infer_filename_from_url(url: str) -> str:
-    """Return the decoded final path segment of a URL, or ``download``."""
+    """Return the basename of the decoded URL path, or ``download`` if it is empty."""
     parsed = urlparse(url)
     name = Path(unquote(parsed.path)).name
     return name or "download"
