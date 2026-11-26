@@ -111,7 +111,11 @@ def validate_file(path: Path, validator: str, *, reject_unsafe_paths: bool = Tru
 
 
 def validate_tar(path: Path, *, reject_unsafe_paths: bool = True) -> None:
-    """Check that a tar archive reads cleanly and has no unsafe members."""
+    """Check that a tar archive reads cleanly.
+
+    Unless reject_unsafe_paths is False, it also rejects unsafe member names and
+    link targets.
+    """
     try:
         with tarfile.open(path, mode="r:*") as archive:
             for member in archive:
@@ -129,7 +133,10 @@ def validate_tar(path: Path, *, reject_unsafe_paths: bool = True) -> None:
 
 
 def validate_zip(path: Path, *, reject_unsafe_paths: bool = True) -> None:
-    """Check that a zip archive has safe member names and passes CRC checks."""
+    """Check that a zip archive passes its CRC checks.
+
+    Unless reject_unsafe_paths is False, it also rejects unsafe member names.
+    """
     try:
         with zipfile.ZipFile(path) as archive:
             infos = archive.infolist()
