@@ -127,3 +127,9 @@ If you have `uv` available:
 ```bash
 uv run python -m unittest discover -s tests
 ```
+
+`make lint` runs the docstring-coverage gate (interrogate over `scripts`, `src`
+and `tests`) through the vendored `scripts/uv_gate.py` helper, which needs
+`python3` 3.9 or newer and `uv` on `PATH`. The helper runs offline first and
+goes online at most once when interrogate is not cached yet; the Makefile has no
+`UV` override.
