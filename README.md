@@ -1,12 +1,8 @@
 # vendcurl
 
-`vendcurl` is a tiny curl-ish command for setup scripts and CI bootstrap code.
-It downloads a URL, validates the resulting file, writes a content-addressed
-blob into an S3-compatible object store, writes a URL manifest, and prefers
-that vendored blob on later runs.
+`vendcurl` is a tiny curl-ish command for setup scripts and CI bootstrap code. It downloads a URL, validates the resulting file, writes a content-addressed blob into an S3-compatible object store, writes a URL manifest, and prefers that vendored blob on later runs.
 
-It is deliberately boring: SHA-256 does the identity work; archive validators
-only check structure and obvious archive-path nastiness.
+It is deliberately boring: SHA-256 does the identity work; archive validators only check structure and obvious archive-path nastiness.
 
 ## Install with uv
 
@@ -64,8 +60,7 @@ The supported environment variables are:
 - `VENDCURL_TIMEOUT`
 - `VENDCURL_USER_AGENT`
 
-Credentials are whatever `boto3` can already find: environment variables,
-profiles, instance metadata, OIDC-derived credentials, and so on.
+Credentials are whatever `boto3` can already find: environment variables, profiles, instance metadata, OIDC-derived credentials, and so on.
 
 ## Behaviour
 
@@ -74,35 +69,24 @@ On the first run, `vendcurl`:
 1. Downloads the origin URL.
 2. Computes SHA-256 while writing the file.
 3. Checks `--sha256` if you supplied it.
-4. Chooses a validator from the filename/content type unless you set
-   `--validator`.
-5. Uploads the blob to
-   `s3://$bucket/$prefix/blobs/sha256/<first-two-hex>/<sha256>`.
-6. Writes a URL manifest to
-   `s3://$bucket/$prefix/manifests/by-url/<sha256(url)>.json`.
+4. Chooses a validator from the filename/content type unless you set `--validator`.
+5. Uploads the blob to `s3://$bucket/$prefix/blobs/sha256/<first-two-hex>/<sha256>`.
+6. Writes a URL manifest to `s3://$bucket/$prefix/manifests/by-url/<sha256(url)>.json`.
 7. Atomically moves the validated file into your requested output path.
 
-On later runs, it reads the URL manifest first, downloads the content-addressed
-blob from S3, re-checks SHA-256 locally, validates the file again, and only
-goes back to the origin if the cache entry is missing or stale.
+On later runs, it reads the URL manifest first, downloads the content-addressed blob from S3, re-checks SHA-256 locally, validates the file again, and only goes back to the origin if the cache entry is missing or stale.
 
 ## Validators
 
 `--validator auto` recognizes:
 
-- tar archives: `.tar`, `.tar.gz`, `.tgz`, `.tar.xz`, `.txz`, `.tar.bz2`,
-  `.tbz`, `.tbz2`
+- tar archives: `.tar`, `.tar.gz`, `.tgz`, `.tar.xz`, `.txz`, `.tar.bz2`, `.tbz`, `.tbz2`
 - zip archives: `.zip`, `.whl`, `.jar`
 - single compressed streams: `.gz`, `.xz`, `.bz2`
 
-You can force a validator with `--validator tar`, `--validator zip`,
-`--validator gzip`, `--validator xz`, `--validator bz2`, or disable structural
-checks with `--validator none`.
+You can force a validator with `--validator tar`, `--validator zip`, `--validator gzip`, `--validator xz`, `--validator bz2`, or disable structural checks with `--validator none`.
 
-By default, tar and zip validation rejects archive member names that look
-dangerous for later extraction, such as absolute paths, Windows drive paths, and
-`..` traversal. Use `--allow-unsafe-archive-paths` only for fossilized
-upstreams that you have inspected and deliberately trust.
+By default, tar and zip validation rejects archive member names that look dangerous for later extraction, such as absolute paths, Windows drive paths, and `..` traversal. Use `--allow-unsafe-archive-paths` only for fossilized upstreams that you have inspected and deliberately trust.
 
 ## Useful modes
 
